@@ -83,6 +83,13 @@ class StretchgoalsSettingsForm(I18nForm, SettingsForm):
         label=_('Generate sold items graph'),
         help_text=_('This graph shows the total amount of sold items over time.'),
     )
+    stretchgoals_show_itemsales_items = forms.BooleanField(
+        required=False,
+        label=_('Show individual products in sold items graph'),
+        help_text=_('If this option is disabled, an aggregated number will only be shown in the sold items graph.'
+                    'Else, a per-item breakdown will be displayed'),
+        widget=forms.CheckboxInput(attrs={'data-checkbox-dependency': '#id_stretchgoals_chart_itemsales'}),
+    )
     stretchgoals_min_orders = forms.IntegerField(
         required=False,
         label=_('Minimal number of orders'),

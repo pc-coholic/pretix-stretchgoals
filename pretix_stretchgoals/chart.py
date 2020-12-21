@@ -7,6 +7,7 @@ from django.db.models.query import QuerySet
 from django.utils.timezone import now
 from i18nfield.strings import LazyI18nString
 from pretix.base.models import Item, OrderPayment, OrderPosition
+from django.utils.translation import gettext_lazy as _
 
 from .json import ChartJSONEncoder
 from .utils import get_cache_key, get_goals
@@ -118,7 +119,7 @@ def get_total_price(event, start_date, end_date, items, include_pending):
     return round(qs.aggregate(Sum('price')).get('price__sum') or 0, 2)
 
 
-def get_itemsales(event, start_date, end_date, items, include_pending):
+def get_itemsales(event, start_date, end_date, items, include_pending, show_items):
     def get_op_count(item):
         try:
             return qs.get(item=item.pk)['total']
@@ -141,13 +142,19 @@ def get_itemsales(event, start_date, end_date, items, include_pending):
             payment_date__gte=start_dt, payment_date__lte=end_dt
         )
 
-    qs = qs.values('item').annotate(total=Count('item')).order_by('item')
+    if show_items:
+        qs = qs.values('item').annotate(total=Count('item')).order_by('item')
 
-    data = {
-        item.pk: get_op_count(item) for item in items
-    }
-    data['date'] = end_date.strftime('%Y-%m-%d')
-    return data
+        data = {
+            item.pk: get_op_count(item) for item in items
+        }
+        data['date'] = end_date.strftime('%Y-%m-%d')
+        return data
+    else:
+        return {
+            'date': end_date.strftime('%Y-%m-%d'),
+            'sum': qs.count()
+        }
 
 
 def get_required_average_price(
@@ -202,6 +209,8 @@ def get_chart_and_text(event):
     avg_chart = event.settings.stretchgoals_chart_averages or False
     total_chart = event.settings.stretchgoals_chart_totals or False
     itemsales_chart = event.settings.stretchgoals_chart_itemsales or False
+    show_itemsales_items = event.settings.stretchgoals_show_itemsales_items or False
+
     event.settings._h.add_type(
         QuerySet,
         lambda queryset: ','.join([str(element.pk) for element in queryset]),
@@ -248,7 +257,7 @@ def get_chart_and_text(event):
         'itemsales_data': {
             'data': [
                 get_itemsales(
-                    event, start_date, date, items, include_pending
+                    event, start_date, date, items, include_pending, show_itemsales_items
                 )
                 for date in get_date_range(start_date, end_date)
             ]
@@ -256,7 +265,7 @@ def get_chart_and_text(event):
             else None,
             'target': [goal.get('amount', 0) for goal in goals],
             'label': 'itemsales',
-            'items': {item.pk: str(item.name) for item in items},
+            'items': {item.pk: str(item.name) for item in items} if show_itemsales_items else {'sum': _('Total')},
         }
     }
     if avg_chart:
