@@ -64,6 +64,26 @@
                     </ul>
                 {% endif %}
             {% endif %}
+            {% if request.event.settings.stretchgoals_chart_itemsales %}
+                {% include "pretixplugins/stretchgoals/chart.html" with data=data.itemsales_data label="itemsales" %}
+                {% if request.event.settings.stretchgoals_calculation_text %}
+                    <ul>
+                        {% for goal in goals %}{% if goal.avg_required %}
+                            <li>
+                                {% if goal.avg_required <= 0 %}
+                                    {% blocktrans trimmed with total=goal.avg name=goal.name %}
+                                        Goal "{{ name }}" of {{ total }} € average sales price has been met!
+                                    {% endblocktrans %}
+                                {% else %}
+                                    {% blocktrans trimmed with total=goal.avg name=goal.name required=goal.avg_required %}
+                                    To reach goal "{{ name }}" of {{ total }} € average sales price, the remaining tickets need to sell at an average of {{ required }} €.
+                                    {% endblocktrans %}
+                                {% endif %}
+                            </li>
+                        {% endif %}{% endfor %}
+                    </ul>
+                {% endif %}
+            {% endif %}
         {% else %}
             <div class="alert alert-info">
                 {% trans "There is not enough data available yet do provide meaningful statistics. Please check back later!" %}

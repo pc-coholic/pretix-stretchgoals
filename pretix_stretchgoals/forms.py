@@ -78,6 +78,11 @@ class StretchgoalsSettingsForm(I18nForm, SettingsForm):
         label=_('Generate total revenue graph'),
         help_text=_('This graph shows the total revenue over time.'),
     )
+    stretchgoals_chart_itemsales = forms.BooleanField(
+        required=False,
+        label=_('Generate sold items graph'),
+        help_text=_('This graph shows the total amount of sold items over time.'),
+    )
     stretchgoals_min_orders = forms.IntegerField(
         required=False,
         label=_('Minimal number of orders'),

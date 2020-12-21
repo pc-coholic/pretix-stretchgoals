@@ -48,6 +48,9 @@
             {% if request.event.settings.stretchgoals_chart_averages %}
                 {% include "pretixplugins/stretchgoals/chart.html" with data=data.avg_data label="avg" %}
             {% endif %}
+            {% if request.event.settings.stretchgoals_chart_itemsales %}
+                {% include "pretixplugins/stretchgoals/chart.html" with data=data.itemsales_data label="itemsales" %}
+            {% endif %}
         {% else %}
             <div class="alert alert-info">
                 {% trans "There is not enough data available yet do provide meaningful statistics. Please check back later!" %}

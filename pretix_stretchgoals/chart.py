@@ -2,7 +2,7 @@ import json
 from datetime import date, datetime, timedelta
 
 import pytz
-from django.db.models import Avg, DateTimeField, Max, OuterRef, Subquery, Sum
+from django.db.models import Avg, DateTimeField, Max, OuterRef, Subquery, Sum, Count
 from django.db.models.query import QuerySet
 from django.utils.timezone import now
 from i18nfield.strings import LazyI18nString
@@ -118,6 +118,38 @@ def get_total_price(event, start_date, end_date, items, include_pending):
     return round(qs.aggregate(Sum('price')).get('price__sum') or 0, 2)
 
 
+def get_itemsales(event, start_date, end_date, items, include_pending):
+    def get_op_count(item):
+        try:
+            return qs.get(item=item.pk)['total']
+        except OrderPosition.DoesNotExist:
+            return 0
+
+    tz = pytz.timezone(event.settings.timezone)
+    start_dt = datetime(
+        start_date.year, start_date.month, start_date.day, 0, 0, 0, tzinfo=tz
+    )
+    end_dt = datetime(
+        end_date.year, end_date.month, end_date.day, 23, 59, 59, tzinfo=tz
+    )
+    if include_pending:
+        qs = get_base_queryset(event, items, include_pending).filter(
+            order__datetime__gte=start_dt, order__datetime__lte=end_dt
+        )
+    else:
+        qs = get_base_queryset(event, items, include_pending).filter(
+            payment_date__gte=start_dt, payment_date__lte=end_dt
+        )
+
+    qs = qs.values('item').annotate(total=Count('item')).order_by('item')
+
+    data = {
+        item.pk: get_op_count(item) for item in items
+    }
+    data['date'] = end_date.strftime('%Y-%m-%d')
+    return data
+
+
 def get_required_average_price(
     event, items, include_pending, target, total_count, total_now
 ):
@@ -169,6 +201,7 @@ def get_chart_and_text(event):
     include_pending = event.settings.stretchgoals_include_pending or False
     avg_chart = event.settings.stretchgoals_chart_averages or False
     total_chart = event.settings.stretchgoals_chart_totals or False
+    itemsales_chart = event.settings.stretchgoals_chart_itemsales or False
     event.settings._h.add_type(
         QuerySet,
         lambda queryset: ','.join([str(element.pk) for element in queryset]),
@@ -212,6 +245,19 @@ def get_chart_and_text(event):
             'target': [goal['total'] for goal in goals],
             'label': 'total',
         },
+        'itemsales_data': {
+            'data': [
+                get_itemsales(
+                    event, start_date, date, items, include_pending
+                )
+                for date in get_date_range(start_date, end_date)
+            ]
+            if itemsales_chart
+            else None,
+            'target': [goal.get('amount', 0) for goal in goals],
+            'label': 'itemsales',
+            'items': {item.pk: str(item.name) for item in items},
+        }
     }
     if avg_chart:
         data['avg_data']['ymin'] = int(
@@ -227,9 +273,11 @@ def get_chart_and_text(event):
     try:
         result['avg_now'] = data['avg_data']['data'][-1]['price']
         result['total_now'] = data['total_data']['data'][-1]['price']
+        result['itemsales_now'] = sum(data['itemsales_data']['data'][-1].values())
     except (TypeError, IndexError):  # no data, data[-1] does not exist
         result['avg_now'] = 0
         result['total_now'] = 0
+        result['itemsales_now'] = 0
 
     for goal in goals:
         goal['avg_required'] = get_required_average_price(
